@@ -565,6 +565,9 @@ importers:
       '@deepseek-ai/dsh-scope':
         specifier: workspace:*
         version: link:../packages/core/scope
+      '@deepseek-ai/dsh-sdk-client':
+        specifier: workspace:*
+        version: link:../packages/sdk/client
       '@deepseek-ai/dsh-sdk-jsonrpc-server':
         specifier: workspace:*
         version: link:../packages/sdk/server
@@ -748,6 +751,9 @@ importers:
       '@deepseek-ai/dsh-workflow-worker-thread':
         specifier: workspace:*
         version: link:../packages/workflow/workflow-worker-thread
+      '@wxg-prc-cpg/dsh-weknora':
+        specifier: ^0.1.0
+        version: 0.1.0
 
   native/landlock-run:
     devDependencies:
@@ -11967,6 +11973,10 @@ packages:
   '@vueuse/shared@12.8.2':
     resolution: {integrity: sha512-dznP38YzxZoNloI0qpEfpkms8knDtaoQ6Y/sfS0L7Yki4zh40LFHEhur0odJC6xTHG5dxWVPiUWBXn+wCG2s5w==}
 
+  '@wxg-prc-cpg/dsh-weknora@0.1.0':
+    resolution: {integrity: sha512-L6q32rNrDBU3Q8xE0SGYMlieC8sKswrp5GOslGka4UnH+f4boxLXLLMgkceE+Ub/c+C2tQ2rsaHXky9bO3pXlw==}
+    engines: {node: '>=20.11'}
+
   '@yarnpkg/cli-dist@4.17.1':
     resolution: {integrity: sha512-2tiSQuJNl/L3QwTdrq6lKWDpkcnp9MGvCT/rIldHcbu3SWfnLdmehvt3eulX1hT7FFt1Gjfq3CesF+kvhFip6g==}
     engines: {node: '>=18.12.0'}
@@ -17158,6 +17168,8 @@ snapshots:
       vue: 3.5.39(typescript@6.0.3)
     transitivePeerDependencies:
       - typescript
+
+  '@wxg-prc-cpg/dsh-weknora@0.1.0': {}
 
   '@yarnpkg/cli-dist@4.17.1': {}
 

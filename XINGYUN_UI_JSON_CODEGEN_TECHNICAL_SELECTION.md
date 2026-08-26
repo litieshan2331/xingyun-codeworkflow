@@ -19,6 +19,8 @@
 | 运行时 | Node.js 22、TypeScript `strict`、pnpm workspace | 复用当前 DSH 仓库的运行时与构建链 | 新建 Java/Python 主服务 |
 | agent 编排 | DeepSeek Harness 内部组合 | DSH 自己编排列表、表单和 JS 增强 Agent；中台仅调用 DSH 输入输出接口 | 中台 BFF 编排三个 Agent、三个独立 DSH 进程或模型编写的固定工作流脚本 |
 | 文本与图片模型 | `dsh-llm-pi-ai` 的本地 vLLM 路由，`Qwen/Qwen3.6-27B-FP8` | 同一个声明图文输入的模型处理文本、图片、列表、表单和 JS 任务 | 在代码中固化 API key 或模型端点，或另建 OCR/视觉服务 |
+| Agent 工具调用 | DSH `dsh-tools` 的 `mode: code` + `dsh-code-runtime-worker-thread` | 三个业务 Agent 和根路由默认使用 PTC/Code Mode；模型通过生成的 TypeScript SDK 调用 WeKnora、文件和 shell 工具，执行仍进入 DSH 正常工具流水线 | 在 Host 自己实现 PTC、让模型直接拼接工具协议或为每个 Agent 手写工具循环 |
+| 跨平台 shell | 官方 `dsh-tool-bash`/`dsh-bash-local` 与 `dsh-tool-pwsh`/`dsh-pwsh-local` 按平台启用 | POSIX runtime 提供 bash，Windows runtime 提供 pwsh；两个工具都保留在配置，但单个 runtime 只启用一个 `ctx.shell` provider，PTC SDK 暴露实际可执行者 | 在同一 runtime 同时注册两个 `ctx.shell` provider，或把 PowerShell 命令交给 bash 执行 |
 | 表单/模块 RAG | `@wxg-prc-cpg/dsh-weknora` | 列表和表单 Agent 通过 DSH 插件调用 WeKnora 的检索/读文档工具，并按知识库 id 隔离范围 | 在当前 DSH 核心树手写 RAG、另建向量库或在 Host 重复实现检索 |
 | embedding | WeKnora 服务自身的 embedding 与索引能力 | DSH 只调用 WeKnora，不在 Host 或 Agent 进程内维护向量 | 假定 Qwen 生成模型同时提供 embedding，或新增独立 embedding 服务 |
 | JS 知识 | `@wxg-prc-cpg/dsh-weknora` 的独立 JS 知识库 | JS Agent 通过 WeKnora 检索 Hook 文档；Agent 自己负责生成、校验和修复 | 中台 BFF 复制 JS 知识库或把三库混在一个检索范围 |
@@ -63,6 +65,8 @@ agent-presets:
 
 列表和表单 Agent 在需要 JS 时，通过现有 `@deepseek-ai/dsh-subagent-dsh-sdk` 调用完整的 JS Agent DSH runtime。该 provider 让子 runtime 自己的 `cordis.yml` 决定模型、skill、工具、校验和修复策略；父 Agent 只获得最终输出。
 
+列表和表单 runtime 各自配置 `xingyun-js` SDK provider 和 `xingyun_js_agent` 工具；根 runtime 将 JS 子 runtime 的 command/args 显式传过两次进程边界。列表或表单 Agent 只在需要 JS 时调用该工具，接收最终文本后合并回自己的 JSON，不直接暴露或检索 JS 知识库。
+
 DSH 是唯一能够执行意图路由、选择 Hook、合并补丁、修复和校验产物的组件。中台 BFF 是唯一调用字段和预览平台接口的组件，并透传 DSH 返回的 `type`、状态和文件。
 
 JS Agent 的 WeKnora 知识库范围、persona、工具集和自动修复策略是 DSH 内部配置；中台 BFF 不设置或覆盖它们。JS Agent 不能直接调用平台预览接口。
@@ -78,9 +82,9 @@ platform UI
 
 | 子 Agent | 模型选择 | 允许工具 | 结构化结果 |
 | --- | --- | --- | --- |
-| 列表 Agent | `vllm/Qwen/Qwen3.6-27B-FP8` | 模块 WeKnora、只读字段元数据 | JSON 草稿或最终 JSON、`type` |
-| 表单 Agent | `vllm/Qwen/Qwen3.6-27B-FP8` | 表单 WeKnora、只读字段元数据 | JSON 草稿或最终 JSON、`type` |
-| JS 增强 Agent | `vllm/Qwen/Qwen3.6-27B-FP8` | JS WeKnora、Agent 自己的校验/修复能力 | 最终 JSON 或完整 JS 文件、`type` |
+| 列表 Agent | `vllm/Qwen/Qwen3.6-27B-FP8` | 模块 WeKnora、文件工具、当前平台 shell，通过 PTC 调用 | JSON 草稿或最终 JSON、`type` |
+| 表单 Agent | `vllm/Qwen/Qwen3.6-27B-FP8` | 表单 WeKnora、文件工具、当前平台 shell，通过 PTC 调用 | JSON 草稿或最终 JSON、`type` |
+| JS 增强 Agent | `vllm/Qwen/Qwen3.6-27B-FP8` | JS WeKnora、文件工具、当前平台 shell、Agent 自己的校验/修复能力，通过 PTC 调用 | 最终 JSON 或完整 JS 文件、`type` |
 
 模型 id、最大 token、thinking、图片大小和重试策略均是 `cordis.yml` 配置，不是代码常量。
 
@@ -121,11 +125,13 @@ JS 知识库导入 WeKnora 的独立知识库范围。JS Agent 使用 `weknora_s
 
 JS 增强 Agent 先通过 WeKnora 检索 Hook 上下文，再由 Agent 自己判断适用模板、生成代码并执行已有校验和修复。无法确定 Hook、页面类型或挂载位置时，由 DSH 返回 `needs_input`，中台 BFF 原样转发而不尝试替代 Hook。
 
+列表和表单的 MVP 草稿 JSON 各有且仅有一个 `funText`。用户明确要求 JS 行为时，父 Agent 先在其中生成原始 JS；该字段非空才写入 UTF-8 临时 `.js` 文件并调用一次 JS Agent。JS Agent 修改文件后，父 Agent 读取文本并覆盖唯一的 `funText`。`targetVersion` 可选，缺省按 `1.5.0` 处理。
+
 直接 JS 模式中，中台上传 UTF-8 `.js` 文件并接收 DSH 返回的完整增强后 JS 文件；JSON 模式的 JSON Pointer 补丁与原值检查留在 DSH 内部，不穿过中台 BFF。
 
 本项目不新增 Ajv、Acorn、业务校验器或 Host 修复循环。JSON/JS 的校验、自动修复和 `needs_input` 由对应 DSH Agent 自己的已有能力完成；中台只检查传输协议和响应包装。
 
-`funText` 的加密/编码算法未确认前，不启用包含 JS 的 JSON 预览提交；原始 JS 不得伪装为编码结果。
+整个 MVP 流程直接传递 `funText` 原始 JS 文本，不做加密、压缩、Base64 或其他业务编码转换。UTF-8 只作为文件读写和 JSON 文本传输的字符集约定。
 
 ### 5.1 自动修复与用户状态
 
@@ -137,7 +143,7 @@ JS 增强 Agent 先通过 WeKnora 检索 Hook 上下文，再由 Agent 自己判
 | --- | --- | --- |
 | `completed` / `succeeded` | 产物通过校验，平台预览已接受或完成 | 返回文件、预览标识或预览地址 |
 | `processing` / `processing` | 产物通过本地校验，平台超时、暂时不可用或异步处理中 | 返回文件并进入带幂等键的后台重试；前端订阅或轮询后续预览状态 |
-| `needs_input` / `needs_input` | 缺少不可安全推断的事实，例如表名、字段权限、精确 Hook、页面类型或平台编码配置 | 返回明确的补充字段，不伪造字段、Hook 或无效文件，也不调用预览接口 |
+| `needs_input` / `needs_input` | 缺少不可安全推断的事实，例如表名、字段权限、精确 Hook 或页面类型 | 返回明确的补充问题，不伪造字段、Hook 或无效文件，也不调用预览接口 |
 
 内部审计保留校验错误码、平台 HTTP 状态和重试次数，但对话界面只呈现可操作的补充信息或处理进度。
 
@@ -180,7 +186,7 @@ Node 22 自带的 `fetch`、`AbortSignal` 和 `FormData` 足以实现 BFF HTTP �
 
 预览接口出现可重试错误时，响应保留已校验文件和 `type`，并将根级 `status` 与 `preview.status` 标记为 `processing`；后台以租户、目标平台版本和输出 SHA-256 构成的幂等键重试。
 
-字段授权、skill、平台编码或本地校验需要用户提供事实时，响应为 `needs_input`，同时给出必填补充项；不调用平台预览接口，也不生成伪造的输出文件。
+字段授权、skill 或本地校验需要用户提供事实时，响应为 `needs_input`，同时给出必填补充项；不调用平台预览接口，也不生成伪造的输出文件。
 
 ## 8. 数据、凭据和观测
 
@@ -225,7 +231,7 @@ Docker Compose 的生产配置使用单独覆盖文件保存环境变量、端�
 | 单元测试 | Vitest：显式/自动模式选择、路由枚举、响应 `type`、文件转发、字段查询转发和预览请求转发 |
 | 组装快照 | 三个 DSH runtime 的真实入口：显式列表/表单/JS、自动路由到三种模式、图片、JSON 内 JS、上传 JS，以及 Agent 自己产生的 `needs_input` |
 | BFF 集成 | Mock Service Worker 或本地 HTTP fixture：DSH 请求/响应转发、字段/预览请求、超时和平台状态映射 |
-| 平台联调 | 受控测试租户：真实字段接口、真实预览接口、`funText` 编码和文件上传协议 |
+| 平台联调 | 受控测试租户：真实字段接口、真实预览接口、原始 `funText` 文件上传协议 |
 | RAG 评测 | WeKnora 与 Agent 真实组合：目标知识库命中、跨库隔离、组件/属性选择和最终文件产出 |
 | 安全测试 | 权限绕过、无授权表、超大/伪造 MIME 文件、提示词注入、未知 Hook、外部 URL 和日志脱敏 |
 
@@ -244,7 +250,7 @@ Docker Compose 的生产配置使用单独覆盖文件保存环境变量、端�
 
 1. 平台提供字段接口和预览接口的 OpenAPI、认证方式、请求/响应样例、文件协议和幂等语义。
 
-2. 平台确认 JSON schema、`funText` 编码算法、编码密钥的归属和预览端接受的 JS 文件格式。
+2. 平台确认 JSON schema、预览端是否直接接受原始 `funText` 文本，以及 JS 文件格式。
 
 3. 中台确认附件存储、病毒扫描、文件保留期限、图片是否可出域到模型服务，以及用户/租户标识的传递方式。
 

@@ -1,0 +1,129 @@
+# JS 子 runtime：每次只处理一个星云 JS 增强任务。
+# stdout 专用于 JSON-RPC 协议，不能增加会输出到 stdout 的日志插件。
+
+# JSON-RPC 服务端：让父 runtime 或本地调用脚本通过 stdio 驱动此子 Agent。
+- id: sdk-jsonrpc-server
+  name: '@deepseek-ai/dsh-sdk-jsonrpc-server'
+
+# 本地 vLLM 模型路由：模型、地址和 Key 都由启动环境提供。
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  config:
+    providers:
+      vllm:
+        apiKeyEnv: VLLM_API_KEY
+        api: openai-completions
+        baseURL: !!js process.env.VLLM_BASE_URL
+        models:
+          - id: Qwen/Qwen3.6-27B-FP8
+            input: [text, image]
+
+# 官方 PTC/Code Mode 运行时：模型通过 run_code 中生成的 TypeScript SDK 调用工具。
+- id: code-runtime
+  name: '@deepseek-ai/dsh-code-runtime-worker-thread'
+
+# Agent 主干：注册循环、提示词和默认 coding Agent 工具运行时。
+- id: agent-spine
+  name: '@deepseek-ai/dsh-agent-spine-demo'
+  config:
+    persona: |-
+      你是星云 JS 增强 Agent。
+      只能使用 js_kb_search 和 js_kb_read_document 检索当前配置的星云 JS 增强知识库。
+      用户请求必须是一个包含 instruction 和 sourcePath 的 JSON 对象，targetVersion 可选；缺少 targetVersion 时按 1.5.0 处理。
+      sourcePath 必须是调用方刚刚创建的、当前任务工作区中的 JavaScript 文件绝对路径。
+      只允许使用 read、edit 查看或修改 sourcePath 指向的这一个文件；不得使用 glob、grep 或 shell 搜索其他候选文件，不得创建或修改 draft.json、generated.json、draft-form.json 或其他文件。
+      如果 sourcePath 缺失、不是绝对路径或文件不存在，立即返回 {"status":"needs_input","message":"请提供可读取的 JS sourcePath"}，不得自行搜索文件。
+      完成修改后保留 sourcePath 文件，并立即返回最终 JSON；不要继续检查其他工作文件。
+      只能返回一个 JSON 对象，不能使用 Markdown 围栏。
+      成功时返回 {"type":"js","status":"completed","file":{"name":"enhanced.js","mediaType":"application/javascript","path":"<sourcePath>"}}。
+      缺少选择 Hook 所需的页面类型或其他事实时，返回 {"status":"needs_input","message":"<需要补充的信息>"}。
+      不执行 JavaScript，不读取其他知识库。
+    # 仅限制 AGENTS.md 等工作区指令注入模型的 UTF-8 字节数，不限制 source.js 长度。
+    workspaceContext:
+      maxBytes: 65536
+    # shell 工具由下方的按平台行提供；避免 Agent Spine 再自动注册一个重复的 bash 工具。
+    toolBash: false
+    # PTC/Code Mode 是该 Agent 的默认工具呈现方式。
+    tools:
+      mode: code
+
+# WeKnora：只暴露 JS 知识库的检索和全文读取工具。
+- id: weknora
+  name: '@wxg-prc-cpg/dsh-weknora'
+  config:
+    # 本地 WeKnora 服务地址和 API Key 只从启动环境读取。
+    baseUrl: !!js process.env.WEKNORA_BASE_URL
+    apiKey: !!js process.env.WEKNORA_API_KEY
+    # 普通租户 Key 不设置该变量时，插件会省略 X-Tenant-ID。
+    tenantId: !!js process.env.WEKNORA_TENANT_ID
+    # 只允许检索指定的 JS 知识库；逗号分隔值便于后续受控扩展。
+    knowledgeBaseIds: !!js (process.env.XINGYUN_JS_KB_ID ?? '').split(',').filter(Boolean)
+    # 使用独立前缀，避免与列表/表单 runtime 的 WeKnora 工具同名。
+    toolPrefix: js_kb
+    tools:
+      # MVP 只需要检索片段和读取完整文档。
+      listKnowledgeBases: false      #不让 Agent 列出可访问的知识库。你们已在配置中固定知识库 ID，因此不需要。
+      search: true                   #开启检索工具。例如 js_kb_search、list_kb_search，根据问题返回相关知识片段。这是主要使用方式。
+      readDocument: true             #开启按文档读取工具。例如 js_kb_read_document，当检索片段不够时，Agent 可读取对应文档的完整内容。
+      ask: false                     #不开启 WeKnora 自己的问答/Agent 流程。你们让 DSH 的 Qwen Agent 基于检索结果自行推理和生成代码，因此不需要额外调用 WeKnora 的问答 Agent。
+
+# 官方本地子进程 provider：为 PowerShell 工具提供进程执行后端。
+- id: subprocess
+  name: '@deepseek-ai/dsh-subprocess-local'
+
+# POSIX 本地 shell；Windows 上禁用，因为 ctx.shell 只能有一个 provider。
+- id: bash
+  name: '@deepseek-ai/dsh-bash-local'
+  disabled: !!js process.platform === 'win32'
+  config:
+    cwd: !!js process.cwd()
+
+# Windows 本地 PowerShell shell；POSIX 上禁用，因为 ctx.shell 只能有一个 provider。
+- id: pwsh
+  name: '@deepseek-ai/dsh-pwsh-local'
+  disabled: !!js process.platform !== 'win32'
+  config:
+    cwd: !!js process.cwd()
+
+# 官方 shell 环境注册表：向 pwsh 提供当前 DSH 会话的受管环境信息。
+- id: shell-env
+  name: '@deepseek-ai/dsh-shell-env'
+
+# POSIX shell 工具；Windows 上禁用。
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+# Windows shell 工具；POSIX 上禁用。PTC SDK 会只生成当前平台可用的工具。
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+# 官方本地文件系统 provider：read/write/edit/grep/glob 都通过它访问任务工作区文件。
+# cwd 仅是相对路径的默认目录，绝对路径仍可越出工作区。
+- id: fs-local
+  name: '@deepseek-ai/dsh-fs-local'
+  config:
+    cwd: !!js process.cwd()
+
+# 官方文件观察策略：修改已有文件前要求先读取，避免基于过期内容覆盖改动。
+- id: fs-observation-policy
+  name: '@deepseek-ai/dsh-fs-observation-policy'
+
+# 官方文件工具：为模型注册 read、write 和 edit。
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+# 官方文件搜索工具：为模型注册 grep 和 glob，便于在长源码中定位修改位置。
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    # 与 DSH 的 standard coding preset 保持一致；结果超过上限时不额外返回抽样条目。
+    sampleOverCapGlobResults: false
+
+# 子 runtime 的独立会话日志；每次进程退出前由 SDK 协议关闭并释放资源。
+- id: sessions
+  name: '@deepseek-ai/dsh-session-persistence-jsonl'
+  config:
+    root: !!js process.env.DSH_SESSION_ROOT ?? './.xingyun-js-sessions'
+    compression: none
