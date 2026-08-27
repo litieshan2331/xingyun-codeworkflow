@@ -1,4 +1,4 @@
-/** Run one JavaScript enhancement request against the standalone child runtime. */
+/** 直接运行星云 JS 增强 Agent，并输出临时 JS 文件的实际内容。 */
 
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

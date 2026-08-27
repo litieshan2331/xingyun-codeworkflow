@@ -1,0 +1,132 @@
+# 自动页面生成 runtime：单一 Agent 根据用户语义生成列表或表单 JSON。
+# stdout 专用于 JSON-RPC 协议，不能增加会输出到 stdout 的日志插件。
+
+- id: sdk-jsonrpc-server
+  name: '@deepseek-ai/dsh-sdk-jsonrpc-server'
+
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  config:
+    providers:
+      vllm:
+        apiKeyEnv: VLLM_API_KEY
+        api: openai-completions
+        baseURL: !!js process.env.VLLM_BASE_URL
+        models:
+          - id: Qwen/Qwen3.6-27B-FP8
+            input: [text, image]
+
+- id: code-runtime
+  name: '@deepseek-ai/dsh-code-runtime-worker-thread'
+
+- id: attachment-local
+  name: '@deepseek-ai/dsh-attachment-local'
+
+- id: agent-spine
+  name: '@deepseek-ai/dsh-agent-spine-demo'
+  config:
+    persona: |-
+      你是星云自动页面生成 Agent。你是当前 runtime 中唯一的 Agent，只生成列表或表单 JSON，不启动或委托其他 Agent。
+      用户请求是一个包含 instruction、outputPath、可选 imagePath 和可选 targetVersion 的 JSON 对象。必须根据 instruction 和图片语义在 list 与 form 中选择一个页面类型，并完成该类型的 JSON。
+      先判断页面语义：查询、筛选、表格、列表、分页、批量操作、查看记录通常是 list；新建、登记、编辑、填写、保存、提交、字段录入通常是 form。语义同时出现时，按用户主要动作选择；列表展示为主选择 list，录入或修改一条记录为主选择 form。
+      imagePath 存在时，先使用 read_image 读取图片，再依据图片的布局、控件和用户文字选择页面类型；不要把图片路径当作图片内容。
+      选择 list 后，只使用 auto_list_kb_search 和 auto_list_kb_read_document 检索模块设计知识库；选择 form 后，只使用 auto_form_kb_search 和 auto_form_kb_read_document 检索表单设计知识库。不要为了比较而检索另一种页面知识库。
+      最终页面 JSON 只有一个 funText 字段。只有用户明确要求 JavaScript、Hook、事件、校验回调或其他 JS 业务行为时，才使用 auto_js_kb_search 和 auto_js_kb_read_document 检索 JS 增强知识库，并将生成的原始 JavaScript 写入 funText。用户未明确提出此类行为时，funText 必须是空字符串，且不得调用 auto_js_kb 工具。
+      直接将最终 list 或 form JSON 以 UTF-8 文本写入 outputPath。不要创建或修改 outputPath 之外的页面 JSON 文件；不要执行生成的 JavaScript。
+      完成后只返回一个业务 JSON 对象，不能使用 Markdown 围栏。list 成功时返回 {"type":"list","status":"completed","file":{"name":"generated-list.json","mediaType":"application/json","path":"<outputPath>"}}；form 成功时返回 {"type":"form","status":"completed","file":{"name":"generated-form.json","mediaType":"application/json","path":"<outputPath>"}}。
+    workspaceContext:
+      maxBytes: 65536
+    toolBash: false
+    tools:
+      mode: code
+
+# 三个前缀让同一 Agent 按页面语义选择检索范围，而不会混淆同名工具。
+- id: auto-list-weknora
+  name: '@wxg-prc-cpg/dsh-weknora'
+  config:
+    baseUrl: !!js process.env.WEKNORA_BASE_URL
+    apiKey: !!js process.env.WEKNORA_API_KEY
+    tenantId: !!js process.env.WEKNORA_TENANT_ID
+    knowledgeBaseIds: !!js (process.env.XINGYUN_LIST_KB_ID ?? '').split(',').filter(Boolean)
+    toolPrefix: auto_list_kb
+    tools:
+      listKnowledgeBases: false
+      search: true
+      readDocument: true
+      ask: false
+
+- id: auto-form-weknora
+  name: '@wxg-prc-cpg/dsh-weknora'
+  config:
+    baseUrl: !!js process.env.WEKNORA_BASE_URL
+    apiKey: !!js process.env.WEKNORA_API_KEY
+    tenantId: !!js process.env.WEKNORA_TENANT_ID
+    knowledgeBaseIds: !!js (process.env.XINGYUN_FORM_KB_ID ?? '').split(',').filter(Boolean)
+    toolPrefix: auto_form_kb
+    tools:
+      listKnowledgeBases: false
+      search: true
+      readDocument: true
+      ask: false
+
+- id: auto-js-weknora
+  name: '@wxg-prc-cpg/dsh-weknora'
+  config:
+    baseUrl: !!js process.env.WEKNORA_BASE_URL
+    apiKey: !!js process.env.WEKNORA_API_KEY
+    tenantId: !!js process.env.WEKNORA_TENANT_ID
+    knowledgeBaseIds: !!js (process.env.XINGYUN_JS_KB_ID ?? '').split(',').filter(Boolean)
+    toolPrefix: auto_js_kb
+    tools:
+      listKnowledgeBases: false
+      search: true
+      readDocument: true
+      ask: false
+
+- id: subprocess
+  name: '@deepseek-ai/dsh-subprocess-local'
+
+- id: bash
+  name: '@deepseek-ai/dsh-bash-local'
+  disabled: !!js process.platform === 'win32'
+  config:
+    cwd: !!js process.cwd()
+
+- id: pwsh
+  name: '@deepseek-ai/dsh-pwsh-local'
+  disabled: !!js process.platform !== 'win32'
+  config:
+    cwd: !!js process.cwd()
+
+- id: shell-env
+  name: '@deepseek-ai/dsh-shell-env'
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+- id: fs-local
+  name: '@deepseek-ai/dsh-fs-local'
+  config:
+    cwd: !!js process.cwd()
+
+- id: fs-observation-policy
+  name: '@deepseek-ai/dsh-fs-observation-policy'
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+- id: sessions
+  name: '@deepseek-ai/dsh-session-persistence-jsonl'
+  config:
+    root: !!js process.env.DSH_SESSION_ROOT ?? './.xingyun-auto-sessions'
+    compression: none
