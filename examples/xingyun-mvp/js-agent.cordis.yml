@@ -113,6 +113,10 @@
 # 官方文件工具：为模型注册 read、write 和 edit。
 - id: tool-fs
   name: '@deepseek-ai/dsh-tool-fs'
+  config:
+    readLimit: 5000
+    readMaxLineLength: 65536
+    readMaxBytes: 262144
 
 # 官方文件搜索工具：为模型注册 grep 和 glob，便于在长源码中定位修改位置。
 - id: tool-fs-search

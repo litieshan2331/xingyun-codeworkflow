@@ -3,104 +3,179 @@
     "pageSize": 10,
     "OperationWidth": null,
     "CSSStyle": "",
-    "funText": "// 请假申请表单 - JS 增强代码\n\n// 1. 表单修改回调：请假类型联动备注 + 日期时间变化自动计算天数\nthis.form.onValuesChange = (FieldsValue, changedValues) => {\n  // 当请假类型变化时，自动在备注中填入提示\n  if (changedValues.qingjialeixing) {\n    const leixing = FieldsValue.qingjialeixing || '';\n    \n    if (leixing === '病假') {\n      // 病假时自动在备注中填入\"需提供病假证明\"\n      this.form.setFieldsValue({\n        beizhu: '需提供病假证明'\n      });\n    } else {\n      // 其他类型清空备注\n      this.form.setFieldsValue({\n        beizhu: ''\n      });\n    }\n  }\n  \n  // 当开始时间或结束时间变化时，自动计算请假天数\n  if (changedValues.kaishishijian || changedValues.jieshushijian) {\n    const startTime = FieldsValue.kaishishijian;\n    const endTime = FieldsValue.jieshushijian;\n    \n    if (startTime && endTime) {\n      // 使用 dayjs 计算小时差\n      const start = _tool.dayjs(startTime);\n      const end = _tool.dayjs(endTime);\n      \n      // 计算相差小时数\n      const hoursDiff = end.diff(start, 'hour');\n      \n      // 转换为天数，精确到 0.5 天\n      // 不足 12 小时按 0.5 天计算，超过 12 小时不足 24 小时按 1 天计算\n      let days = 0;\n      if (hoursDiff > 0) {\n        days = Math.ceil(hoursDiff / 12) * 0.5;\n        // 保留一位小数\n        days = Math.round(days * 10) / 10;\n      }\n      \n      // 回填到请假天数字段\n      if (days > 0) {\n        this.form.setFieldsValue({\n          qingjiatushu: days\n        });\n      }\n    } else {\n      // 时间不完整时清空天数\n      this.form.setFieldsValue({\n        qingjiatushu: ''\n      });\n    }\n  }\n  \n  return FieldsValue;\n};\n\n// 2. 保存前校验：结束时间不能早于开始时间\nthis.form.saveFormAgo = () => {\n  const formData = this.form.getFieldsValue(true);\n  const startTime = formData.kaishishijian;\n  const endTime = formData.jieshushijian;\n  \n  // 校验开始时间和结束时间是否已填写\n  if (!startTime) {\n    _tool.Global.prompt('error', '请选择开始时间');\n    return false;\n  }\n  \n  if (!endTime) {\n    _tool.Global.prompt('error', '请选择结束时间');\n    return false;\n  }\n  \n  // 校验结束时间不能早于开始时间\n  const start = _tool.dayjs(startTime);\n  const end = _tool.dayjs(endTime);\n  \n  if (end.isBefore(start)) {\n    _tool.Global.prompt('error', '结束时间不能早于开始时间，请重新选择');\n    return false;\n  }\n  \n  return true;\n};"
+    "funText": ""
   },
   "modelJson": [
     {
-      "name": "请假申请表单",
+      "name": "干部信息管理",
       "group": "布局组件",
-      "type": "FreeLayout",
-      "utilStyle": {
-        "padding": "20px"
-      },
-      "attr": {},
-      "field": "FreeLayout_1787888579863",
-      "key": "freelayout_1787888579863",
-      "attr.sum": [
-        {
-          "name": "请假类型",
-          "group": "查询组件",
-          "type": "Selectbox",
-          "tabKey": "1",
-          "useheader": true,
-          "attr": {
-            "value": "",
-            "placeholder": "请选择请假类型",
-            "style": {
-              "width": "300px"
-            },
-            "options": [
-              {
-                "label": "事假",
-                "value": "事假"
+      "type": "AboutLayout",
+      "attr": {
+        "sum": {
+          "AboutSider": [
+            {
+              "name": "左侧信息区",
+              "group": "布局组件",
+              "type": "FreeLayout",
+              "utilStyle": {
+                "padding": "20px"
               },
-              {
-                "label": "病假",
-                "value": "病假"
+              "attr": {},
+              "field": "FreeLayout_1787890644644",
+              "key": "freelayout_1787890644644",
+              "attr.sum": [
+                {
+                  "name": "姓名",
+                  "group": "查询组件",
+                  "type": "Input",
+                  "rules": "0",
+                  "regular": "",
+                  "useheader": true,
+                  "attr": {
+                    "value": "",
+                    "placeholder": "请输入姓名"
+                  },
+                  "field": "xingming",
+                  "key": "input_1787890644645"
+                },
+                {
+                  "name": "性别",
+                  "group": "查询组件",
+                  "type": "Selectbox",
+                  "tabKey": "1",
+                  "useheader": true,
+                  "attr": {
+                    "value": "",
+                    "placeholder": "请选择",
+                    "style": {
+                      "width": "100%"
+                    },
+                    "options": [
+                      {
+                        "label": "男",
+                        "value": "男"
+                      },
+                      {
+                        "label": "女",
+                        "value": "女"
+                      }
+                    ]
+                  },
+                  "field": "xingbie",
+                  "key": "selectbox_1787890644646"
+                },
+                {
+                  "name": "出生日期",
+                  "group": "查询组件",
+                  "type": "DatePicker",
+                  "useheader": true,
+                  "attr": {
+                    "value": "",
+                    "placeholder": "请选择",
+                    "picker": "date",
+                    "style": {
+                      "width": "100%"
+                    }
+                  },
+                  "field": "chushengriqi",
+                  "key": "datepicker_1787890644647"
+                },
+                {
+                  "name": "民族",
+                  "group": "查询组件",
+                  "type": "Selectbox",
+                  "tabKey": "1",
+                  "useheader": true,
+                  "attr": {
+                    "value": "",
+                    "placeholder": "请选择",
+                    "style": {
+                      "width": "100%"
+                    },
+                    "options": [
+                      {
+                        "label": "选项一",
+                        "value": "选项一"
+                      },
+                      {
+                        "label": "选项二",
+                        "value": "选项二"
+                      },
+                      {
+                        "label": "选项三",
+                        "value": "选项三"
+                      }
+                    ]
+                  },
+                  "field": "minzu",
+                  "key": "selectbox_1787890644648"
+                },
+                {
+                  "name": "政治面貌",
+                  "group": "查询组件",
+                  "type": "Input",
+                  "rules": "0",
+                  "regular": "",
+                  "useheader": true,
+                  "attr": {
+                    "value": "",
+                    "placeholder": "请选择"
+                  },
+                  "field": "zhengzhimianmao",
+                  "key": "input_1787890644649"
+                },
+                {
+                  "name": "参加工作时间",
+                  "group": "查询组件",
+                  "type": "DatePicker",
+                  "useheader": true,
+                  "attr": {
+                    "value": "",
+                    "placeholder": "请选择",
+                    "picker": "date",
+                    "style": {
+                      "width": "100%"
+                    }
+                  },
+                  "field": "canjiazgongzuo",
+                  "key": "datepicker_1787890644650"
+                }
+              ]
+            }
+          ],
+          "AboutContent": [
+            {
+              "name": "照片上传",
+              "group": "功能组件",
+              "type": "UploadImg",
+              "useheader": true,
+              "attr": {
+                "value": [],
+                "maxCount": 1,
+                "style": {
+                  "width": "100%"
+                }
               },
-              {
-                "label": "年假",
-                "value": "年假"
-              },
-              {
-                "label": "调休",
-                "value": "调休"
-              }
-            ]
-          },
-          "field": "qingjialeixing",
-          "key": "selectbox_1787888579864"
-        },
-        {
-          "name": "开始时间",
-          "group": "查询组件",
-          "type": "DatePicker",
-          "useheader": true,
-          "attr": {
-            "value": "",
-            "placeholder": "请选择开始时间",
-            "picker": "showTime",
-            "style": {
-              "width": "300px"
+              "field": "zhaopian",
+              "key": "uploadimg_1787890644651"
             }
-          },
-          "field": "kaishishijian",
-          "key": "datepicker_1787888579865"
-        },
-        {
-          "name": "结束时间",
-          "group": "查询组件",
-          "type": "DatePicker",
-          "useheader": true,
-          "attr": {
-            "value": "",
-            "placeholder": "请选择结束时间",
-            "picker": "showTime",
-            "style": {
-              "width": "300px"
-            }
-          },
-          "field": "jieshushijian",
-          "key": "datepicker_1787888579866"
-        },
-        {
-          "name": "请假天数",
-          "group": "查询组件",
-          "type": "InputNumber",
-          "useheader": true,
-          "attr": {
-            "value": "",
-            "min": 0,
-            "precision": 1,
-            "placeholder": "自动计算",
-            "style": {
-              "width": "300px"
-            }
-          },
-          "field": "qingjiatushu",
-          "key": "inputnumber_1787888579867"
+          ]
         }
-      ]
+      },
+      "utilStyle": {
+        "display": "flex",
+        "width": "100%"
+      },
+      "SiderStyle": {
+        "width": "75%",
+        "display": "block"
+      },
+      "ContentStyle": {
+        "width": "25%",
+        "display": "block"
+      },
+      "field": "AboutLayout_1787890644644",
+      "key": "aboutlayout_1787890644644"
     }
   ],
   "toolTableHeader": null,

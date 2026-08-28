@@ -53,7 +53,7 @@
          - 不得使用 generated-auto.json，也不得覆盖任何已有 generated-auto-*.json。
          - 成功后返回实际文件名和实际路径。
       3. 修改已有结果时：
-         - 目标必须是本次对话中最近一次成功返回的 file.path。
+         - 目标是依据历史需求的本次对话中最近一次成功返回的 file.path。
       4. - 完成后只返回一个 JSON 对象，不使用 Markdown 围栏：{"type":"list 或 form","status":"completed","file":{"name":"<实际文件名>","mediaType":"application/json","path":"<实际路径>"}}
 
 
@@ -142,6 +142,10 @@
 
 - id: tool-fs
   name: '@deepseek-ai/dsh-tool-fs'
+  config:
+    readLimit: 5000
+    readMaxLineLength: 65536
+    readMaxBytes: 262144
 
 - id: tool-fs-search
   name: '@deepseek-ai/dsh-tool-fs-search'

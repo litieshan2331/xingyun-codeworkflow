@@ -1,2 +1,0 @@
-name: 星云列表
-description: 使用列表知识库生成包含查询区、表格和分页的页面 JSON；需要 JS 行为时委托 JS runtime。
