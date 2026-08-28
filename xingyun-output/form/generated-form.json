@@ -1,0 +1,211 @@
+{
+  "moduledeploy": {
+    "pageSize": 10,
+    "OperationWidth": null,
+    "CSSStyle": "",
+    "funText": "// 全局校验回调\nfunction validate() {\n    var role = getFieldValue(\"role\");\n    var empName = getFieldValue(\"emp_name\");\n    \n    if (!role || role === \"\") {\n        showMessage(\"请选择角色\");\n        return false;\n    }\n    \n    if (!empName || empName === \"\") {\n        showMessage(\"请输入姓名\");\n        return false;\n    }\n    \n    if (role === \"董事长\" || role === \"经理\") {\n        var deptId = getFieldValue(\"dept_id\");\n        if (!deptId || deptId === \"\") {\n            showMessage(\"董事长和经理必须选择部门\");\n            return false;\n        }\n    }\n    \n    return true;\n}\n\nfunction beforeSave() {\n    return validate();\n}\n\nfunction onLoad() {\n    setFieldRequired(\"role\", true);\n    setFieldRequired(\"emp_name\", true);\n}"
+  },
+  "CustomAction": [
+    {
+      "name": "编辑",
+      "key": "edit",
+      "icon": "ToolOutlined",
+      "default": "2"
+    },
+    {
+      "name": "删除",
+      "key": "delete",
+      "icon": "DeleteOutlined",
+      "default": "1"
+    }
+  ],
+  "modelJson": [
+    {
+      "name": "弹性布局",
+      "group": "布局组件",
+      "type": "FlexLayout",
+      "attr": {
+        "sum": {
+          "FlexRoutine": [
+            {
+              "name": "自由布局",
+              "group": "布局组件",
+              "type": "FreeLayout",
+              "attr": {
+                "sum": [
+                  {
+                    "group": "查询组件",
+                    "name": "姓名",
+                    "type": "Input",
+                    "rules": "1",
+                    "regular": "",
+                    "useheader": true,
+                    "field": "emp_name",
+                    "key": "input_1750000000001",
+                    "attr": {
+                      "value": "",
+                      "placeholder": "请输入姓名"
+                    }
+                  },
+                  {
+                    "group": "查询组件",
+                    "name": "性别",
+                    "type": "RadioGroup",
+                    "tabKey": "1",
+                    "useheader": true,
+                    "field": "gender",
+                    "key": "radiogroup_1750000000002",
+                    "rules": "0",
+                    "attr": {
+                      "value": "",
+                      "options": [
+                        {
+                          "label": "男",
+                          "value": "男"
+                        },
+                        {
+                          "label": "女",
+                          "value": "女"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "group": "查询组件",
+                    "name": "部门",
+                    "type": "DepSelect",
+                    "useheader": true,
+                    "field": "dept_id",
+                    "key": "depselect_1750000000003",
+                    "rules": "0",
+                    "attr": {
+                      "value": "",
+                      "placeholder": "请选择部门"
+                    }
+                  },
+                  {
+                    "group": "查询组件",
+                    "name": "角色",
+                    "type": "RadioGroup",
+                    "tabKey": "1",
+                    "useheader": true,
+                    "field": "role",
+                    "key": "radiogroup_1750000000004",
+                    "rules": "1",
+                    "attr": {
+                      "value": "",
+                      "options": [
+                        {
+                          "label": "员工",
+                          "value": "员工"
+                        },
+                        {
+                          "label": "董事长",
+                          "value": "董事长"
+                        },
+                        {
+                          "label": "经理",
+                          "value": "经理"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "group": "查询组件",
+                    "name": "职位",
+                    "type": "Selectbox",
+                    "tabKey": "1",
+                    "useheader": true,
+                    "field": "position",
+                    "key": "selectbox_1750000000005",
+                    "rules": "0",
+                    "attr": {
+                      "value": "",
+                      "options": [
+                        {
+                          "label": "选项一",
+                          "value": "选项一"
+                        },
+                        {
+                          "label": "选项二",
+                          "value": "选项二"
+                        },
+                        {
+                          "label": "选项三",
+                          "value": "选项三"
+                        }
+                      ],
+                      "style": {
+                        "width": "100%"
+                      }
+                    }
+                  },
+                  {
+                    "group": "查询组件",
+                    "name": "入职日期",
+                    "type": "DatePicker",
+                    "useheader": true,
+                    "field": "hire_date",
+                    "key": "datepicker_1750000000006",
+                    "rules": "0",
+                    "attr": {
+                      "value": "",
+                      "style": {
+                        "width": "100%",
+                        "maxWidth": 500
+                      },
+                      "picker": "date"
+                    }
+                  },
+                  {
+                    "group": "查询组件",
+                    "name": "手机号",
+                    "type": "Input",
+                    "rules": "0",
+                    "regular": "^1[3-9]\\d{9}$",
+                    "useheader": true,
+                    "field": "phone",
+                    "key": "input_1750000000007",
+                    "attr": {
+                      "value": "",
+                      "placeholder": "请输入手机号"
+                    }
+                  },
+                  {
+                    "group": "查询组件",
+                    "name": "邮箱",
+                    "type": "Input",
+                    "rules": "0",
+                    "regular": "^\\w+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+$",
+                    "useheader": true,
+                    "field": "email",
+                    "key": "input_1750000000008",
+                    "attr": {
+                      "value": "",
+                      "placeholder": "请输入邮箱"
+                    }
+                  }
+                ]
+              },
+              "utilStyle": {
+                "width": "100%"
+              }
+            }
+          ]
+        }
+      },
+      "utilStyle": {
+        "width": "100%",
+        "flexDirection": "row",
+        "gap": 10
+      },
+      "field": "FlexLayout_1750000000000",
+      "key": "flexlayout_1750000000000"
+    }
+  ],
+  "toolTableHeader": null,
+  "reportCode": "",
+  "_Sqls": "",
+  "treeCode": "",
+  "formTreeIds": ""
+}

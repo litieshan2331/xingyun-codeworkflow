@@ -18,6 +18,8 @@ pnpm dsh web --patch ".\examples\xingyun-web\xingyun-web.cordis.yml" --no-open
 
 The Web process discovers the four presets from `$DSH_HOME/.agent-presets`. Select a preset before creating a new conversation; a conversation keeps the preset selected when it starts.
 
+This overlay enables the official `compaction-basic`, `tool-result-pruner`, and `command-compact` plugins. Automatic compaction and tool-result pruning apply independently to each Web session and never mix histories across presets or sessions; when idle, use `/compact` to compact the current session manually.
+
 ## Presets
 
 - `xingyun-list` retrieves the list knowledge base and writes `generated-list.json`. When `funText` contains an explicit JavaScript behavior, the preset calls the existing JS runtime through the official `dsh-subagent-dsh-sdk` provider.

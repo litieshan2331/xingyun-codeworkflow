@@ -18,6 +18,8 @@ pnpm dsh web --patch ".\examples\xingyun-web\xingyun-web.cordis.yml" --no-open
 
 Web 进程会从 `$DSH_HOME/.agent-presets` 发现四个 preset。请在新建对话前选择 preset；对话启动后会固定使用创建时选择的 preset。
 
+此 overlay 启用官方 `compaction-basic`、`tool-result-pruner` 和 `command-compact`。自动压缩和工具结果剪枝独立作用于每个 Web 会话，不会在不同 preset 或会话之间混合历史；空闲时可输入 `/compact` 手动压缩当前会话。
+
 ## Preset
 
 - `xingyun-list` 检索列表知识库并写入 `generated-list.json`。当 `funText` 包含用户明确要求的 JavaScript 行为时，通过官方 `dsh-subagent-dsh-sdk` provider 调用现有 JS runtime。

@@ -21,6 +21,15 @@
   config:
     default: xingyun-auto
 
+- id: compaction-basic
+  disabled: false
+
+- id: tool-result-pruner
+  disabled: false
+
+- id: command-compact
+  disabled: false
+
 - insert:
     # 该 provider 位于 Web Host 平面。list/form preset 仅注册自己的 xingyun_js_agent 工具。
     - id: xingyun-js-runtime
