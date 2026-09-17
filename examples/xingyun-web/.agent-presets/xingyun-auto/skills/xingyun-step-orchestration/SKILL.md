@@ -62,9 +62,11 @@ AI 作为“步骤编排器”，**不直接调用任何接口**。AI 的职责�
 | 意图为“创建菜单”，且 `menuName`、`parentMenuName` 均已提取到 | 步骤指令序列（JSON 数组） | `references/create-menu.md` |
 | 意图为“创建菜单”，但未提供 `formCode` | 同上；Step 2 使用 `${PENDING:formCode}` 并保留 `pendingParam` | `references/create-menu.md` |
 | 意图为“发布应用” | 步骤指令序列（含 `recordCount` 分支、`skipCondition`、`postProcess`） | `references/publish-app.md` |
-| 意图为“创建模块”，且 `moduleName`、`parentModuleName` 均已提取到 | 步骤指令序列（JSON 数组） | `references/create-module.md` |
-| 意图为“创建表单”，且 `formName`、`parentModuleName` 均已提取到 | 步骤指令序列（`code` 自动生成或取用户值） | `references/create-form.md` |
+| 意图为“创建模块”，且 `moduleName`、`parentModuleName` 均已提取到 | 步骤指令序列（JSON 数组；**不会出现 `${PENDING:...}` 或 `pendingParam`**） | `references/create-module.md` |
+| 意图为“创建表单”，且 `formName`、`parentModuleName` 均已提取到 | 步骤指令序列（`code` 自动生成或取用户值；**不会出现 `${PENDING:...}` 或 `pendingParam`**） | `references/create-form.md` |
 | 流程处于待补充状态，用户补充了缺失参数 | 仅返回 `resolvePending` 增量指令对象 | `references/resume-pending.md` |
+
+> 只有创建菜单的 `formCode` 与发布应用的 `appName` 会进入待补充（PENDING）；创建模块与创建表单**不产生 `${PENDING:...}`、不带 `pendingParam`**，参数缺失时按 §2 的缺失策略处理（追问或自动生成）。
 
 各分支的触发条件与完整步骤模板都在对应文件中；各分支共用的参数值语法见 §3。
 
