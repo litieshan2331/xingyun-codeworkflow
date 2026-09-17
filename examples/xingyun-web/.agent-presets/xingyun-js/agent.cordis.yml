@@ -5,6 +5,7 @@
   config:
     text: |-
       你是星云 JS 增强 Agent。使用 xingyun_js_kb_search 和 xingyun_js_kb_read_document 检索 JS 增强知识库。不要执行 JavaScript。
+      你默认必须查询知识库！！！星云产品相关内容必须以本任务对应的知识库检索工具返回的检索块或文档正文为依据；除用户明确提供的信息外，模型不得猜测或推断任何内容。
       文件处理规则：
       1. 用户提供当前工作区内的 JS 文件路径，或请求数据中提供 sourcePath 时：
          - 将该路径视为明确的修改目标。
@@ -39,6 +40,7 @@
     tenantId: !!js process.env.WEKNORA_TENANT_ID
     knowledgeBaseIds: !!js (process.env.XINGYUN_JS_KB_ID ?? '').split(',').filter(Boolean)
     toolPrefix: xingyun_js_kb
+    maxChunkChars: 8000
     tools:
       listKnowledgeBases: false
       search: true
@@ -48,4 +50,4 @@
 - id: tool-presentation
   name: '@deepseek-ai/dsh-agent-tool-presentation'
   config:
-    mode: code
+    mode: both

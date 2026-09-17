@@ -25,7 +25,7 @@
   disabled: false
 
 - id: tool-result-pruner
-  disabled: false
+  disabled: true
 
 - id: command-compact
   disabled: false
