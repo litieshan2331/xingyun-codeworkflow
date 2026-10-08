@@ -70,7 +70,7 @@ def test_missing_model_fails_without_defaulting_to_openai(monkeypatch):
         scoring._judge_config()
 
 
-def test_score_uses_single_ragas_worker(monkeypatch):
+def test_score_uses_eight_ragas_workers(monkeypatch):
     captured = {}
 
     class FakeResult:
@@ -90,10 +90,101 @@ def test_score_uses_single_ragas_worker(monkeypatch):
     assert scoring._score([
         {"user_input": "问题", "response": "回答", "retrieved_contexts": ["证据"]}
     ]) == [1.0]
-    assert captured["max_workers"] == 1
+    assert captured["max_workers"] == 8
 
 
-def test_read_retry_ids_uses_only_unscored_cases(tmp_path):
-    report = tmp_path / "report.json"
-    report.write_text(json.dumps({"cases": [{"case_id": "ok"}], "unscored": [{"case_id": "retry"}]}), encoding="utf-8")
-    assert scoring._read_retry_ids(report) == {"retry"}
+def retry_inputs(tmp_path, monkeypatch):
+    monkeypatch.setenv("XINGYUN_EVAL_MODEL", "test-judge")
+    dataset = tmp_path / "dataset.jsonl"
+    run = tmp_path / "run.jsonl"
+    cases = [
+        {"case_id": case_id, "query": "问题", "knowledge_base": "js"}
+        for case_id in ("ok", "retry", "still-failed", "no-answer")
+    ]
+    runs = [
+        {"case_id": case["case_id"], "status": "completed", "response": "已保存回答", "final_retrieval_hits": [{"retrieved_context": "已保存证据"}]}
+        for case in cases
+    ]
+    runs[-1]["response"] = None
+    dataset.write_text("\n".join(json.dumps(case) for case in cases) + "\n", encoding="utf-8")
+    run.write_text("\n".join(json.dumps(row) for row in runs) + "\n", encoding="utf-8")
+    report = tmp_path / "first.json"
+    monkeypatch.setattr(scoring, "_score", lambda samples: [1.0, float("nan"), float("nan")])
+    monkeypatch.setattr("sys.argv", ["score", "--dataset", str(dataset), "--run", str(run), "--out", str(report)])
+    assert scoring.main() == 1
+    return dataset, run, report, cases
+
+
+def test_retry_only_scores_failed_cases_and_merges_previous_scores(tmp_path, monkeypatch):
+    dataset, run, previous, cases = retry_inputs(tmp_path, monkeypatch)
+    original_report = previous.read_bytes()
+    original_run = run.read_bytes()
+    out = tmp_path / "retry.json"
+    requested = []
+
+    def fake_score(samples):
+        requested.extend(samples)
+        return [0.5, float("nan")]
+
+    monkeypatch.setattr(scoring, "_score", fake_score)
+    monkeypatch.setattr("sys.argv", ["score", "--dataset", str(dataset), "--run", str(run), "--retry-report", str(previous), "--out", str(out)])
+    assert scoring.main() == 1
+    assert [sample["case_id"] for sample in requested] == ["retry", "still-failed"]
+    assert all(sample["response"] == "已保存回答" for sample in requested)
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["cases"] == [
+        {"case_id": "ok", "knowledge_base": "js", "faithfulness": 1.0},
+        {"case_id": "retry", "knowledge_base": "js", "faithfulness": 0.5},
+    ]
+    assert report["macro_score"] == 0.75
+    assert report["by_knowledge_base"]["js"] == {"count": 2, "score": 0.75}
+    assert report["retried_count"] == 2
+    assert report["unscored_count"] == 2
+    assert [item["case_id"] for item in report["unscored"]] == ["still-failed", "no-answer"]
+    assert previous.read_bytes() == original_report
+    assert run.read_bytes() == original_run
+
+
+@pytest.mark.parametrize("invalid", ["model", "duplicate", "score", "missing", "input_changed"])
+def test_retry_rejects_inconsistent_report(tmp_path, monkeypatch, invalid):
+    dataset, run, previous, cases = retry_inputs(tmp_path, monkeypatch)
+    report = json.loads(previous.read_text(encoding="utf-8"))
+    if invalid == "model":
+        report["model"] = "other-model"
+    elif invalid == "duplicate":
+        report["unscored"].append({"case_id": "ok"})
+    elif invalid == "score":
+        report["cases"][0]["faithfulness"] = 2
+    elif invalid == "missing":
+        report["unscored"].pop()
+    else:
+        run.write_text(run.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    previous.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(scoring.InputError):
+        scoring._read_retry_report(previous, dataset, run, cases)
+
+
+def test_retry_accepts_legacy_report_without_hashes(tmp_path, monkeypatch):
+    dataset, run, previous, cases = retry_inputs(tmp_path, monkeypatch)
+    report = json.loads(previous.read_text(encoding="utf-8"))
+    del report["dataset_sha256"]
+    del report["run_sha256"]
+    previous.write_text(json.dumps(report), encoding="utf-8")
+    scored, ids = scoring._read_retry_report(previous, dataset, run, cases)
+    assert [item["case_id"] for item in scored] == ["ok"]
+    assert ids == {"retry", "still-failed", "no-answer"}
+
+
+def test_retry_with_only_missing_answers_does_not_call_llm(tmp_path, monkeypatch):
+    dataset, run, previous, cases = retry_inputs(tmp_path, monkeypatch)
+    report = json.loads(previous.read_text(encoding="utf-8"))
+    report["cases"].extend({"case_id": case_id, "knowledge_base": "js", "faithfulness": 0.5} for case_id in ("retry", "still-failed"))
+    report["unscored"] = [{"case_id": "no-answer", "reason": "运行结果缺少 response"}]
+    previous.write_text(json.dumps(report), encoding="utf-8")
+    monkeypatch.setattr(scoring, "_score", lambda samples: pytest.fail("没有可重试样本时不应调用模型"))
+    out = tmp_path / "retry.json"
+    monkeypatch.setattr("sys.argv", ["score", "--dataset", str(dataset), "--run", str(run), "--retry-report", str(previous), "--out", str(out)])
+    assert scoring.main() == 1
+    result = json.loads(out.read_text(encoding="utf-8"))
+    assert result["scored_count"] == 3
+    assert result["retried_count"] == 0

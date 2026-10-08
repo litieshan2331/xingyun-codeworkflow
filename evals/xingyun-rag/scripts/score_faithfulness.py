@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -35,23 +36,69 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def _read_retry_ids(path: Path) -> set[str]:
-    """读取上一次报告中的不可评分案例 ID。"""
+def _read_retry_report(
+    path: Path,
+    dataset_path: Path,
+    run_path: Path,
+    dataset: list[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], set[str]]:
+    """校验旧报告的来源、模型和案例完整性，返回保留分数与待重试 ID。"""
     try:
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise InputError(f"无法读取重试报告 {path}") from error
     if not isinstance(report, Mapping):
         raise InputError(f"重试报告 {path} 必须是 JSON 对象")
-    unscored = report.get("unscored")
-    if not isinstance(unscored, list):
-        raise InputError(f"重试报告 {path} 缺少 unscored 数组")
+    expected_metadata = {
+        "metric": "faithfulness",
+        "ragas_version": "0.3.9",
+        "model": os.environ.get("XINGYUN_EVAL_MODEL") or os.environ.get("VLLM_MODEL"),
+        "temperature": 0,
+        "enable_thinking": False,
+    }
+    for key, value in expected_metadata.items():
+        if key not in report or report[key] != value:
+            raise InputError(f"重试报告 {key} 与当前评分配置不一致，请使用原配置或重新全量评分")
+    for key, input_path in (("dataset", dataset_path), ("run", run_path)):
+        source = report.get(key)
+        if not isinstance(source, str) or Path(source).resolve() != input_path.resolve():
+            raise InputError(f"重试报告 {key} 与当前输入路径不一致")
+        digest = report.get(f"{key}_sha256")
+        if digest is not None and digest != hashlib.sha256(input_path.read_bytes()).hexdigest():
+            raise InputError(f"重试报告 {key} 内容已改变，请重新全量评分")
+
+    expected_cases = {case["case_id"]: case for case in dataset}
+    scored: list[dict[str, Any]] = []
+    retry_ids: set[str] = set()
     ids: set[str] = set()
-    for index, item in enumerate(unscored):
-        if not isinstance(item, Mapping) or not isinstance(item.get("case_id"), str):
-            raise InputError(f"重试报告 unscored[{index}] 缺少 case_id")
-        ids.add(item["case_id"])
-    return ids
+    for key in ("cases", "unscored"):
+        items = report.get(key)
+        if not isinstance(items, list):
+            raise InputError(f"重试报告 {path} 缺少 {key} 数组")
+        for index, item in enumerate(items):
+            if not isinstance(item, Mapping) or not isinstance(item.get("case_id"), str):
+                raise InputError(f"重试报告 {key}[{index}] 缺少 case_id")
+            case_id = item["case_id"]
+            if case_id not in expected_cases or case_id in ids:
+                raise InputError(f"重试报告案例 {case_id} 不在数据集中或重复出现")
+            ids.add(case_id)
+            if key == "unscored":
+                retry_ids.add(case_id)
+                continue
+            score = item.get("faithfulness")
+            if (
+                isinstance(score, bool)
+                or not isinstance(score, (int, float))
+                or not math.isfinite(score)
+                or not 0 <= score <= 1
+            ):
+                raise InputError(f"重试报告案例 {case_id} 的 faithfulness 不是有效分数")
+            if item.get("knowledge_base") != expected_cases[case_id].get("knowledge_base", "unknown"):
+                raise InputError(f"重试报告案例 {case_id} 的 knowledge_base 与数据集不一致")
+            scored.append(dict(item))
+    if ids != set(expected_cases):
+        raise InputError("重试报告未覆盖当前数据集的全部案例")
+    return scored, retry_ids
 
 
 def _contexts(row: Mapping[str, Any]) -> list[str]:
@@ -170,6 +217,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.out.resolve() in {args.dataset.resolve(), args.run.resolve()}:
+        raise InputError("--out 不能覆盖数据集或运行文件")
+
     dataset = _read_jsonl(args.dataset)
     run_rows = _read_jsonl(args.run)
     runs: dict[str, Mapping[str, Any]] = {}
@@ -182,38 +232,26 @@ def main() -> int:
             ids.add(case_id)
     runs = {row["case_id"]: row for row in run_rows}
     all_samples, all_skipped = _build_samples(dataset, runs)
-    retry_ids = _read_retry_ids(args.retry_report) if args.retry_report else None
-    if retry_ids is None:
+    if not args.retry_report:
         samples = all_samples
         skipped = all_skipped
         previous_scored: list[dict[str, Any]] = []
     else:
+        previous_scored, retry_ids = _read_retry_report(
+            args.retry_report, args.dataset, args.run, dataset
+        )
         samples = [sample for sample in all_samples if sample["case_id"] in retry_ids]
         skipped = [item for item in all_skipped if item["case_id"] in retry_ids]
-        try:
-            previous_report = json.loads(args.retry_report.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            raise InputError(f"无法读取重试报告 {args.retry_report}") from error
-        previous_cases = previous_report.get("cases") if isinstance(previous_report, Mapping) else None
-        if not isinstance(previous_cases, list):
-            raise InputError(f"重试报告 {args.retry_report} 缺少 cases 数组")
-        previous_scored = [
-            item
-            for item in previous_cases
-            if isinstance(item, Mapping) and isinstance(item.get("case_id"), str)
-        ]
     scores = _score(samples) if samples else []
     scored = [dict(item) for item in previous_scored]
-    retry_scored_ids = {sample["case_id"] for sample in samples}
-    scored = [item for item in scored if item["case_id"] not in retry_scored_ids]
     for sample, score in zip(samples, scores, strict=True):
         if not math.isfinite(score) or not 0 <= score <= 1:
             skipped.append({"case_id": sample["case_id"], "reason": "RAGAS 未返回有效分数"})
             continue
         scored.append({"case_id": sample["case_id"], "knowledge_base": sample["knowledge_base"], "faithfulness": score})
-    if retry_ids is not None:
-        scored_ids = {item["case_id"] for item in scored}
-        skipped = [item for item in skipped if item["case_id"] not in scored_ids]
+    order = {case["case_id"]: index for index, case in enumerate(dataset)}
+    scored.sort(key=lambda item: order[item["case_id"]])
+    skipped.sort(key=lambda item: order[item["case_id"]])
     groups: dict[str, list[float]] = defaultdict(list)
     for row in scored:
         groups[row["knowledge_base"]].append(row["faithfulness"])
@@ -222,6 +260,10 @@ def main() -> int:
         "ragas_version": "0.3.9",
         "dataset": str(args.dataset),
         "run": str(args.run),
+        "dataset_sha256": hashlib.sha256(args.dataset.read_bytes()).hexdigest(),
+        "run_sha256": hashlib.sha256(args.run.read_bytes()).hexdigest(),
+        "retry_report": str(args.retry_report) if args.retry_report else None,
+        "retried_count": len(samples) if args.retry_report else 0,
         "model": os.environ.get("XINGYUN_EVAL_MODEL") or os.environ.get("VLLM_MODEL"),
         "temperature": 0,
         "enable_thinking": False,
@@ -237,7 +279,7 @@ def main() -> int:
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
-    print(json.dumps({"macro_score": report["macro_score"], "scored_count": len(scored), "retried_count": len(samples)}, ensure_ascii=False))
+    print(json.dumps({"macro_score": report["macro_score"], "scored_count": len(scored), "retried_count": report["retried_count"]}, ensure_ascii=False))
     return 1 if skipped or not scored else 0
 
 

@@ -99,13 +99,13 @@ cd D:\Project_Zy\deepseek-harness\evals\xingyun-rag
 
 ## Faithfulness 评分
 
-Faithfulness 使用 RAGAS 判断 Agent 的 `response` 是否能由最终检索文本推出。评分输入必须来自实际运行结果：`query` 来自数据集，`response` 来自运行结果，`retrieved_contexts` 来自 `final_retrieval_hits[].retrieved_context`。人工参考 ID 不会替代实际上下文。仅 `status=completed`、`unambiguous=true` 且同时包含回答和最终文本的案例计分；其他案例记录为不可评分，不转换为 0 分。
+Faithfulness 使用 RAGAS 判断 Agent 的 `response` 是否能由最终检索文本推出。评分输入必须来自实际运行结果：`query` 来自数据集，`response` 来自运行结果，`retrieved_contexts` 来自 `final_retrieval_hits[].retrieved_context`。人工参考 ID 不会替代实际上下文。仅 `status=completed` 且同时包含回答和最终文本的案例计分；不按 `unambiguous` 筛选。其他案例记录为不可评分，不转换为 0 分。
 
-`run_cases.py` 只检索，不生成回答。先将实际使用这些最终上下文生成的回答保存为运行行的 `response`，并在数据集对应行设置 `unambiguous: true`。页面 JSON 使用知识库驱动的设计决定摘要，排除用户指定的业务名称和文件路径；不要使用 `reference_answer` 充当实际回答。缺失或被截断的上下文不可评分。脚本读取根目录 `.env`，环境变量优先。
+`run_cases.py` 只检索，不生成回答。先将实际使用这些最终上下文生成的回答保存为运行行的 `response`。页面 JSON 使用知识库驱动的设计决定摘要，排除用户指定的业务名称和文件路径；不要使用 `reference_answer` 充当实际回答。缺失或被截断的上下文不可评分。脚本读取根目录 `.env`，环境变量优先。
 
 使用独立运行器补生成回答，不会重新执行查询改写或 WeKnora 检索。它读取旧的检索运行文件，使用原始 `query` 和其中的 `final_retrieval_hits` 调用生成模型，并写出带 `response` 的新运行文件。模型名优先读取 `XINGYUN_GENERATION_MODEL`，其次读取 `VLLM_MODEL`；评分模型由 `XINGYUN_EVAL_MODEL` 指定。生成温度为 `0`，关闭 thinking，最大输出为 1,200 tokens。该运行器评估知识库问答流程，不运行完整星云 Agent 或生成页面 JSON。
 
-输入缺少文本、上下文被截断或检索失败时不调用模型；生成失败会记录原因，存在失败或跳过案例时返回 1。输出保留旧运行字段并增加 `response`、`generation_status`、`generation_error` 和生成配置；`--out` 必须与 `--run` 路径不同。仅有检索结果不需要重新生成评测集，人工确认无歧义的案例仍需在数据集中标记 `unambiguous: true`。
+输入缺少文本、上下文被截断或检索失败时不调用模型；生成失败会记录原因，存在失败或跳过案例时返回 1。输出保留旧运行字段并增加 `response`、`generation_status`、`generation_error` 和生成配置；`--out` 必须与 `--run` 路径不同。仅有检索结果不需要重新生成评测集。
 
 ```powershell
 cd D:\Project_Zy\deepseek-harness\evals\xingyun-rag
@@ -141,10 +141,12 @@ uv sync
   --dataset datasets\retrieval.v1.jsonl `
   --run runs\<run-id>-faithfulness.jsonl `
   --retry-report reports\<run-id>-faithfulness.json `
-  --out reports\<run-id>-faithfulness-retry.json
+ --out reports\<run-id>-faithfulness-retry.json
 ```
 
-报告输出总体宏平均、各知识库分组分数、逐案例分数和不可评分原因，不保存回答、知识库全文或密钥。RAGAS 评分显式使用 `max_workers=1`，避免本地 vLLM 服务同时处理多个声明拆分和判定请求。无可评分案例时平均值为 `null`，RAGAS 无效分数不计入平均值；存在不可评分案例时退出码为 1，输入格式错误时为 2。`0.90` 是建议参考门槛，脚本不据此执行验收；Faithfulness 不衡量回答完整性。报告记录判分模型和 RAGAS 版本，知识库版本与生成配置随运行结果保存。
+新报告合并旧分数与重试结果，重新计算总体及知识库分组平均值。`retried_count` 表示本次送入 RAGAS 的案例数；缺少回答或上下文的案例不发送模型请求，继续保留为不可评分。再次重试时将 `--retry-report` 指向最新报告。重试需使用相同数据集、运行文件和判分模型；新报告记录输入文件哈希并拒绝内容变化。旧报告无哈希时只校验路径、配置和案例对应关系，请保留原输入文件。
+
+报告输出总体宏平均、各知识库分组分数、逐案例分数和不可评分原因，不保存回答、知识库全文或密钥。RAGAS 评分使用 `max_workers=8`，每个案例内的声明拆分与判定顺序执行。无可评分案例时平均值为 `null`，RAGAS 无效分数不计入平均值；存在不可评分案例时退出码为 1，输入格式错误时为 2。`0.90` 是建议参考门槛，脚本不据此执行验收；Faithfulness 不衡量回答完整性。报告记录判分模型和 RAGAS 版本，知识库版本与生成配置随运行结果保存。
 
 ## 本地验证
 
