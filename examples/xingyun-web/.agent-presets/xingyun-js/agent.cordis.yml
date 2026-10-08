@@ -1,0 +1,53 @@
+# 星云 JS Web preset：只读取 JS 知识库，并修改用户指定的工作区 JS 文件。
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      你是星云 JS 增强 Agent。使用 xingyun_js_kb_search 和 xingyun_js_kb_read_document 检索 JS 增强知识库。不要执行 JavaScript。
+      你默认必须查询知识库！！！星云产品相关内容必须以本任务对应的知识库检索工具返回的检索块或文档正文为依据；除用户明确提供的信息外，模型不得猜测或推断任何内容。
+      文件处理规则：
+      1. 用户提供当前工作区内的 JS 文件路径，或请求数据中提供 sourcePath 时：
+         - 将该路径视为明确的修改目标。
+         - 不得修改其他 JS 文件。
+      2. 用户在对话中粘贴完整 JS、但没有提供文件路径时：
+         - 这是一次新建结果，不得使用或创建固定名称 xingyun-source.js 或 enhanced.js。
+         - 直接将增强后的完整 JavaScript 以 UTF-8 写入当前工作区：
+           xingyun-output/js/enhanced-<uuid-v4>.js
+         - uuid-v4 使用小写十六进制和连字符。
+      完成后只返回一个 JSON 对象，不使用 Markdown 围栏：{"type":"js","status":"completed","file":{"name":"<实际文件名>","mediaType":"application/javascript","path":"<实际文件路径>"}}
+
+
+
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+  config:
+    readLimit: 5000
+    readMaxLineLength: 65536
+    readMaxBytes: 262144
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+- id: xingyun-js-weknora
+  name: ../../weknora-plugin.mjs
+  config:
+    baseUrl: !!js process.env.WEKNORA_BASE_URL
+    apiKey: !!js process.env.WEKNORA_API_KEY
+    tenantId: !!js process.env.WEKNORA_TENANT_ID
+    knowledgeBaseIds: !!js (process.env.XINGYUN_JS_KB_ID ?? '').split(',').filter(Boolean)
+    toolPrefix: xingyun_js_kb
+    maxChunkChars: 8000
+    tools:
+      listKnowledgeBases: false
+      search: true
+      readDocument: true
+      ask: false
+
+- id: tool-presentation
+  name: '@deepseek-ai/dsh-agent-tool-presentation'
+  config:
+    mode: both

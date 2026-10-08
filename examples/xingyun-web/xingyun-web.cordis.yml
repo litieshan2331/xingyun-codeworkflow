@@ -1,0 +1,31 @@
+# 星云 Web 测试 overlay。
+# preset 由 DSH_HOME/.agent-presets 自动发现；该 overlay 只提供共享模型路由。
+
+- id: llm-pi-ai
+  config:
+    providers:
+      vllm:
+        apiKeyEnv: VLLM_API_KEY
+        api: openai-completions
+        baseURL: !!js process.env.VLLM_BASE_URL
+        models:
+          - id: Qwen/Qwen3.6-27B-FP8
+            input: [text, image]
+
+- id: agent-default-model
+  config:
+    provider: vllm
+    model: Qwen/Qwen3.6-27B-FP8
+
+- id: agent-presets
+  config:
+    default: xingyun-auto
+
+- id: compaction-basic
+  disabled: false
+
+- id: tool-result-pruner
+  disabled: true
+
+- id: command-compact
+  disabled: false

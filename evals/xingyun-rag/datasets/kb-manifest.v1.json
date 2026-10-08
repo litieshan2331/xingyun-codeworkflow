@@ -1,0 +1,38 @@
+{
+  "format": "xingyun-rag-chunk-manifest/v1",
+  "chunk_id_field": "id",
+  "chunk_id_source": "WeKnora knowledge-search data[].id or chunks data[].id",
+  "parent_chunk_id_field": "parent_chunk_id",
+  "knowledge_bases": [
+    {
+      "name": "list",
+      "ids": [
+        "e0ad5910-5290-464e-bdd8-7a5d3b82800b"
+      ],
+      "document_count": 1,
+      "chunk_counts": {
+        "e0ad5910-5290-464e-bdd8-7a5d3b82800b": 121
+      }
+    },
+    {
+      "name": "form",
+      "ids": [
+        "1d7c97e0-5478-4a18-977c-a067484d33e1"
+      ],
+      "document_count": 1,
+      "chunk_counts": {
+        "1d7c97e0-5478-4a18-977c-a067484d33e1": 208
+      }
+    },
+    {
+      "name": "js",
+      "ids": [
+        "32c8043a-b0df-4ec1-aa0a-78a0dcd56464"
+      ],
+      "document_count": 1,
+      "chunk_counts": {
+        "32c8043a-b0df-4ec1-aa0a-78a0dcd56464": 254
+      }
+    }
+  ]
+}
