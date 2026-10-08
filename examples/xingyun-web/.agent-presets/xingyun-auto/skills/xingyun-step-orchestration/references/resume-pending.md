@@ -14,7 +14,7 @@
 }
 ```
 场景示例一：补充 formCode（创建菜单）
-用户输入“code是flood_supplies”时，AI 返回：
+例如用户输入“code是flood_supplies”时，AI 返回：
 ```json
 {
   "updateType": "resolvePending",
@@ -26,7 +26,7 @@
 }
 ```
 场景示例二：补充 appName（发布应用）
-用户输入“发布防汛管理应用”时，AI 返回：
+例如用户输入“发布防汛管理应用”时，AI 返回：
 ```json
 {
   "updateType": "resolvePending",

@@ -1,7 +1,7 @@
 # 创建模块
 
 #### 触发条件
-用户意图匹配"创建模块"，且必填参数（`moduleName`、`parentModuleName`）均已提取到。
+用户意图匹配"创建模块"，且必填参数（`moduleName`、`parentModuleName`）均已提取到。并且需要把必填参数（`moduleName`、`parentModuleName`）填入到下面的 JSON 中，替换掉 ${input.moduleName} 和 ${input.parentModuleName}。
 #### 步骤返回格式
 ```json
 [

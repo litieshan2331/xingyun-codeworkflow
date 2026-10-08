@@ -1,10 +1,11 @@
 # 创建菜单
 
 #### 触发条件
-用户意图匹配“创建菜单”，且必填参数（`menuName`、`parentMenuName`）均已提取到。
+用户意图匹配“创建菜单”，且必填参数（`menuName`、`parentMenuName`）均已提取到。并且需要把必填参数（`menuName`、`parentMenuName`）填入到下面的 JSON 中，替换掉 ${input.menuName} 和 ${input.parentMenuName}。
 #### 步骤返回格式（当 formCode 未提供时）
 若用户未提供 `formCode`，AI 必须返回以下 JSON 数组。注意 Step 2 中的 `${PENDING:formCode}` 和 `pendingParam` 字段。
 *(注：若用户首次输入已包含 formCode，则将 `${PENDING:formCode}` 替换为 `${input.formCode}`，并移除 `pendingParam` 字段)*
+
 ```json
 [
   {

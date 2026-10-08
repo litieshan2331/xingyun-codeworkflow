@@ -5,10 +5,11 @@
 业务逻辑说明
 - 首次查询应用列表时不传 name 参数。
 - 若返回记录数 "recordCount" = 0，中断流程并提示用户先创建应用。
-- 若返回记录数 "recordCount" = 1，直接使用 records[0].id 进入下一步。
+- 若返回记录数 "recordCount" = 1，直接使用 records[0].id 进入 step3。
 - 若返回记录数 "recordCount" > 1，暂停流程并通过 PENDING 机制追问用户具体应用名称，用户补充后重新查询。
 - 获取应用详情后，**必须请求完整菜单树**（不传 name），并通过 `postProcess` 二次加工提取发布所需的菜单数据。
 - 使用应用详情中的字段和菜单树数据组装 FormData 并发布。
+- fallbackExtract 说明：当步骤被 skipCondition 跳过时，前端应从 fallbackExtract 中获取替代值。例如 Step3 被跳过时，appId 回退使用 Step1 提取的值。 例如：若Step2 可能被跳过，Step3 应使用 ${step1.appId} 而非 ${step2.appId}。
 #### 步骤返回格式
 ```json
 [
