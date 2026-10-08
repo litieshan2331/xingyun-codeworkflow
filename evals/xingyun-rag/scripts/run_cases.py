@@ -1,6 +1,6 @@
 """通过 WeKnora 运行阶段一检索案例，并保存结构化命中结果。
 
-此运行器在页面或 JavaScript 生成前测量检索器。每个案例只调用一个知识库工具，并在检索前执行与 WeKnora 查询理解阶段一致的单轮问题改写，记录服务端返回的全部搜索命中，每个命中最多保存 1,200 个上下文字符。
+此运行器在页面或 JavaScript 生成前测量检索器。每个案例只调用一个知识库工具，并在检索前执行与 WeKnora 查询理解阶段一致的单轮问题改写，记录服务端返回的全部搜索命中。默认保存完整上下文；需要控制文件大小时可显式设置字符上限。
 
 每个案例同时保存 RRF 后、Rerank 前的候选结果和 Rerank 后的最终结果。候选结果用于 Recall，最终结果用于父块 Precision。
 """
@@ -40,7 +40,6 @@ except ImportError:
     from rewrite_query import QueryRewriter, RewriteResult
 
 
-DEFAULT_MAX_CHUNK_CHARS = 1200
 DEFAULT_EMBEDDING_TOP_K = 40
 DEFAULT_VECTOR_THRESHOLD = 0.1
 DEFAULT_KEYWORD_THRESHOLD = 0.1
@@ -58,13 +57,15 @@ def _optional_string(value: Any, description: str) -> str | None:
     return _string(value, description)
 
 
-def clip_context(content: str, max_chars: int) -> tuple[str, bool]:
-    """对一个搜索段落应用模型上下文字符上限。"""
+def clip_context(content: str, max_chars: int | None) -> tuple[str, bool]:
+    """按可选字符上限截取搜索段落；上限为空时保留完整文本。"""
 
+    if max_chars is None:
+        return content, False
     return content[:max_chars], len(content) > max_chars
 
 
-def project_hit(hit: Mapping[str, Any], max_chunk_chars: int) -> dict[str, Any]:
+def project_hit(hit: Mapping[str, Any], max_chunk_chars: int | None) -> dict[str, Any]:
     """将一个原始搜索命中投影为阶段一运行结果。
 
     子 chunk ID 是唯一评分键；WeKnora 将子命中扩展为父上下文时，父 ID 用于描述上下文来源。
@@ -108,7 +109,7 @@ def run_cases(
     cases: Iterable[Mapping[str, Any]],
     targets: Mapping[str, KnowledgeBaseTarget],
     *,
-    max_chunk_chars: int,
+    max_chunk_chars: int | None,
     rewriter: QueryRewriter | None = None,
     embedding_top_k: int = DEFAULT_EMBEDDING_TOP_K,
     vector_threshold: float = DEFAULT_VECTOR_THRESHOLD,
@@ -285,10 +286,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-chunk-chars",
         type=_positive_int,
-        default=DEFAULT_MAX_CHUNK_CHARS,
+        default=None,
         help=(
             "每个命中保留的最大上下文字符数 "
-            f"（默认：{DEFAULT_MAX_CHUNK_CHARS}）。"
+            "（默认保留完整上下文，用于 Faithfulness 生成）。"
         ),
     )
     parser.add_argument(

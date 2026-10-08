@@ -77,6 +77,10 @@ def test_clip_context_reports_when_the_agent_context_is_truncated() -> None:
     assert clip_context("abc", 3) == ("abc", False)
 
 
+def test_clip_context_keeps_full_text_by_default() -> None:
+    assert clip_context("abcdef", None) == ("abcdef", False)
+
+
 def test_project_hit_keeps_child_id_separate_from_parent_and_context() -> None:
     result = project_hit(
         {
